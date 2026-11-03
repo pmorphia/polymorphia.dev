@@ -4,12 +4,1103 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Polymorphia</title>
+<meta name="description" content="Polymorphia — home of the Flywheel language.">
+<meta name="theme-color" content="#08080a">
+<meta property="og:title" content="Polymorphia">
+<meta property="og:image" content="https://polymorphia.dev/banner.png">
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-  html, body { height: 100%; margin: 0; }
-  body { display: flex; align-items: center; justify-content: center;
-         font-family: system-ui, sans-serif; font-size: 2rem; background: #fff; color: #111; }
-  @media (prefers-color-scheme: dark) { body { background: #111; color: #eee; } }
+  :root {
+    color-scheme: dark;
+    --bg: #08080a;
+    --panel: rgba(16, 16, 20, 0.82);
+    --fg: #f2f2ee;
+    --dim: #8b8b94;
+    --faint: #4a4a52;
+    --line: #26262d;
+    --acc: #d4ff3a;
+    --cyan: #7dd3fc;
+    --violet: #c4b5fd;
+    --amber: #fbbf24;
+    --red: #ff5f5f;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+    /* driven by the intro: 0 → 1 */
+    --b: 1;      /* banner reveal */
+    --late: 1;   /* buttons, shell, flywheel frames */
+    --grid: 1;   /* dot grid */
+  }
+  html { scrollbar-gutter: stable; background: var(--bg); }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font-family: var(--mono); font-size: 15px; overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--acc); color: var(--bg); }
+  a { color: inherit; }
+  :focus-visible { outline: 2px solid var(--acc); outline-offset: 3px; }
+
+  /* ---------- background layers ---------- */
+  #rings { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+  #grid {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: var(--grid);
+    background-image: radial-gradient(circle, rgba(255,255,255,.09) 1px, transparent 1.5px);
+    background-size: 28px 28px;
+    -webkit-mask-image: radial-gradient(ellipse at 50% 45%, #000 20%, transparent 75%);
+            mask-image: radial-gradient(ellipse at 50% 45%, #000 20%, transparent 75%);
+  }
+
+  /* ---------- intro scaffolding ---------- */
+  #spacer { height: 420vh; }
+  body.main #spacer { display: none; }
+  #app {
+    position: fixed; inset: 0; z-index: 1;
+    box-sizing: border-box; min-height: 100svh; max-width: 1140px; margin: 0 auto;
+    padding: clamp(28px, 6vh, 72px) 16px clamp(20px, 4vh, 40px);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: clamp(22px, 4.5vh, 44px);
+  }
+  body.intro #app { overflow: hidden; }
+  body.main #app { position: relative; inset: auto; }
+
+  #hint {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 2;
+    background: none; border: 0; color: var(--dim); font: inherit; font-size: 12px;
+    letter-spacing: .3em; text-transform: uppercase; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 8px;
+  }
+  #hint::after {
+    content: ""; width: 1px; height: 42px;
+    background: linear-gradient(var(--fg), transparent);
+    animation: drip 1.8s cubic-bezier(.6,0,.3,1) infinite; transform-origin: top;
+  }
+  @keyframes drip { 0% { transform: scaleY(0); opacity: 1 } 60% { transform: scaleY(1); opacity: 1 } 100% { transform: scaleY(1); opacity: 0 } }
+  body.main #hint { display: none; }
+
+  /* click-to-enter gate: browsers need a click/tap/key before audio can play */
+  html.locked { overflow: hidden; }
+  #gate {
+    position: fixed; inset: 0; z-index: 4; display: flex; align-items: flex-end; justify-content: center;
+    padding-bottom: 34px; background: none; border: 0; color: var(--fg); font: inherit; cursor: pointer;
+    transition: opacity .5s ease;
+  }
+  #gate span {
+    font-size: 12px; letter-spacing: .3em; text-transform: uppercase;
+    animation: breathe 2.4s ease-in-out infinite;
+  }
+  #gate small { display: block; margin-top: 8px; font-size: 10px; letter-spacing: .2em; color: var(--faint); text-transform: lowercase; }
+  #gate:focus-visible { outline: none; }
+  #gate:focus-visible span { outline: 2px solid var(--acc); outline-offset: 6px; }
+  #gate.gone { opacity: 0; pointer-events: none; }
+  html.locked #hint { opacity: 0 !important; pointer-events: none; }
+  @keyframes breathe { 50% { opacity: .35 } }
+
+  #sound {
+    position: fixed; top: 14px; right: 16px; z-index: 3;
+    background: none; border: 1px solid var(--line); border-radius: 999px;
+    color: var(--dim); font: inherit; font-size: 11px; letter-spacing: .12em; text-transform: lowercase;
+    padding: 5px 11px; cursor: pointer; transition: color .2s, border-color .2s;
+  }
+  #sound:hover { color: var(--acc); border-color: var(--acc); }
+  #sound[aria-pressed="true"] { color: var(--fg); }
+
+  /* ---------- hero ---------- */
+  .hero { display: flex; align-items: center; gap: clamp(14px, 2.6vw, 34px); width: 100%; justify-content: center; }
+  /* the logo lives in the flywheel disc; during the intro it floats free (fixed) and docks there */
+  .logo-slot { position: absolute; inset: 7.5%; pointer-events: none; }
+  #logo {
+    display: block; transform-origin: 50% 50%;
+    opacity: 0; transition: opacity .8s ease;
+  }
+  #logo.floating {
+    position: fixed; left: 0; top: 0; z-index: 2; pointer-events: none; will-change: transform;
+  }
+  #logo.docked { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #logo.ready { opacity: 1; }
+  .banner-wrap { position: relative; margin: 0; width: min(760px, 68vw); }
+  #banner {
+    display: block; width: 100%; height: auto;
+    clip-path: inset(-4% calc((1 - var(--b)) * 50%) -4% calc((1 - var(--b)) * 50%));
+    filter: blur(calc((1 - var(--b)) * 10px));
+  }
+  .banner-wrap::before, .banner-wrap::after {
+    content: ""; position: absolute; top: -10%; bottom: -10%; width: 2px;
+    background: var(--acc); box-shadow: 0 0 20px 2px var(--acc);
+    opacity: min(calc(var(--b) * 12), calc((1 - var(--b)) * 12));
+  }
+  .banner-wrap::before { left: calc((1 - var(--b)) * 50%); }
+  .banner-wrap::after { right: calc((1 - var(--b)) * 50%); }
+
+
+  /* finale: light sweep across the wordmark (masked to the letter shapes) */
+  .glint {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(105deg, transparent 42%, rgba(212,255,58,.95) 50%, rgba(255,255,255,.9) 52%, transparent 60%) no-repeat;
+    background-size: 300% 100%;
+    background-position: calc(100% - var(--glint, 0) * 100%) 0;
+    opacity: var(--glintA, 0);
+    -webkit-mask: url(banner.png) center / 100% 100% no-repeat;
+            mask: url(banner.png) center / 100% 100% no-repeat;
+  }
+
+  /* ---------- typewriter buttons ---------- */
+  .links { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
+  .tw {
+    --k: clamp(0, calc(var(--late) * 3 - var(--i) * .55), 1);
+    position: relative; isolation: isolate; box-sizing: border-box;
+    display: inline-flex; align-items: center; gap: 1ch;
+    height: 46px; padding: 0 18px; width: calc((var(--len) + 5) * 1ch + 36px);
+    color: var(--fg); text-decoration: none; font-size: 15px;
+    border: 1px solid var(--line); background: rgba(255,255,255,.015);
+    opacity: var(--k); transform: translateY(calc((1 - var(--k)) * 18px));
+    transition: color .25s, border-color .25s;
+  }
+  .tw::after {
+    content: ""; position: absolute; inset: -1px; z-index: -1; background: var(--acc);
+    transform: scaleX(0); transform-origin: left; transition: transform .38s cubic-bezier(.75,0,.2,1);
+  }
+  .tw:hover, .tw:focus-visible { color: var(--bg); border-color: var(--acc); }
+  .tw:hover::after, .tw:focus-visible::after { transform: scaleX(1); }
+  .tw .sig { color: var(--acc); transition: color .25s; }
+  .tw:hover .sig, .tw:focus-visible .sig { color: var(--bg); }
+  .tw .txt { white-space: pre; }
+  .tw .caret { display: inline-block; width: .62ch; height: 1.15em; margin-left: -1ch; background: currentColor; opacity: 0; }
+  .tw.typing .caret { opacity: 1; }
+  .tw:hover .caret { animation: blink 1s steps(1) infinite; }
+  .tw .arr { margin-left: auto; color: var(--dim); transition: transform .3s, color .25s; }
+  .tw:hover .arr { transform: translate(2px, -2px); color: var(--bg); }
+  @keyframes blink { 50% { opacity: 0 } }
+
+  /* ---------- deck: shell + flywheel ---------- */
+  .deck {
+    width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto;
+    gap: clamp(24px, 4vw, 56px); align-items: center;
+  }
+
+  .term {
+    position: relative; border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+    box-shadow: 0 30px 80px -30px rgba(0,0,0,.8);
+    clip-path: inset(0 0 calc((1 - var(--late)) * 100%) 0 round 10px);
+    opacity: min(1, calc(var(--late) * 2.5));
+  }
+  .term-bar {
+    display: flex; align-items: center; gap: 12px; padding: 10px 14px;
+    border-bottom: 1px solid var(--line); font-size: 12px; color: var(--dim);
+  }
+  .dots { display: flex; gap: 6px; }
+  .dots i { width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+  .dots i:first-child { background: var(--acc); }
+  .term-title { flex: 1; text-align: center; margin-right: 46px; }
+  .term-body {
+    height: clamp(210px, 32vh, 320px); overflow-y: auto; padding: 14px 16px 10px;
+    font-size: 14px; line-height: 1.6; cursor: text; overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+  }
+  .ln { white-space: pre-wrap; word-break: break-word; min-height: 1.6em; }
+  .prompt { display: flex; align-items: flex-start; gap: 1ch; }
+  .ps1 { white-space: nowrap; flex: none; }
+  .ps1 .u { color: var(--acc); } .ps1 .h { color: var(--fg); } .ps1 .d { color: var(--cyan); } .ps1 .s { color: var(--acc); }
+  .ps1 .at, .ps1 .c { color: var(--faint); }
+  .field { position: relative; flex: 1; min-width: 0; height: 1.6em; }
+  .field input, .field .hl {
+    position: absolute; inset: 0; margin: 0; padding: 0; border: 0;
+    font: inherit; font-size: inherit; line-height: inherit; letter-spacing: 0;
+    white-space: pre; overflow: hidden;
+  }
+  .field .hl { pointer-events: none; color: var(--fg); }
+  .field input {
+    width: 100%; background: transparent; color: transparent; caret-color: var(--acc); outline: none;
+  }
+  .field input:disabled { cursor: default; }
+  .ghost { color: var(--faint); }
+  .t-cmd { color: var(--acc); }
+  .t-pre { color: var(--fg); }
+  .t-bad { color: var(--red); text-decoration: underline wavy rgba(255,95,95,.5); text-underline-offset: 3px; }
+  .t-flag { color: var(--cyan); }
+  .t-str { color: var(--amber); }
+  .t-path { color: var(--violet); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(196,181,253,.35); }
+  .t-arg { color: var(--fg); }
+  .o-dim { color: var(--dim); } .o-err { color: var(--red); } .o-acc { color: var(--acc); }
+  .o-cyan { color: var(--cyan); } .o-vio { color: var(--violet); }
+  .out a { color: var(--cyan); text-underline-offset: 3px; }
+
+  .menu { display: grid; grid-template-columns: max-content 1fr; column-gap: 3ch; margin: 2px 0 4px 2ch; }
+  .menu .it { display: contents; cursor: pointer; }
+  .menu .it > span { padding: 0 6px; }
+  .menu .nm { color: var(--fg); }
+  .menu .ds { color: var(--dim); }
+  .menu .it.sel > span { background: var(--acc); color: var(--bg); }
+  .menu .it:hover:not(.sel) > span { background: rgba(255,255,255,.06); }
+
+  .chips {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px;
+    border-top: 1px solid var(--line); font-size: 12px; color: var(--dim);
+  }
+  .chips button {
+    font: inherit; color: var(--fg); background: transparent; border: 1px solid var(--line);
+    border-radius: 999px; padding: 3px 10px; cursor: pointer; transition: border-color .2s, color .2s;
+  }
+  .chips button:hover { border-color: var(--acc); color: var(--acc); }
+
+  /* flywheel */
+  .fly {
+    --k: clamp(0, calc(var(--late) * 1.6 - .3), 1);
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+    text-decoration: none; color: var(--fg); -webkit-tap-highlight-color: transparent;
+  }
+  .fly svg { opacity: var(--k); transform: rotate(calc((1 - var(--k)) * -40deg)) scale(calc(.85 + var(--k) * .15)); }
+  .fly-label { opacity: var(--k); transform: translateY(calc((1 - var(--k)) * 12px)); }
+  .fly-disc {
+    position: relative; width: clamp(240px, 28vw, 340px); aspect-ratio: 1; border-radius: 50%;
+  }
+  .fly-disc::before {
+    content: ""; position: absolute; inset: 8%; border-radius: 50%;
+    background: radial-gradient(circle, rgba(212,255,58,calc(.04 + var(--spin, 0) * .22)), transparent 70%);
+    transition: background .3s;
+  }
+  .fly svg { position: relative; display: block; width: 100%; height: 100%; overflow: visible; }
+  .fly .orbit { font: 500 8.5px var(--mono); fill: var(--dim); letter-spacing: 2px; transition: fill .3s; }
+  .fly:hover .orbit, .fly:focus-visible .orbit { fill: var(--acc); }
+  .fly:focus-visible { outline: none; }
+  .fly:focus-visible .fly-disc { outline: 2px solid var(--acc); outline-offset: 8px; }
+  .fly-label { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .fly-label b { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+  .fly-label small { font-size: 12px; color: var(--dim); transition: color .25s; }
+  .fly-label small span { display: inline-block; transition: transform .3s; }
+  .fly:hover .fly-label small { color: var(--acc); }
+  .fly:hover .fly-label small span { transform: translateX(4px); }
+  /* hand-off to flywheel.polymorphia.dev: everything but the logo fades, the logo glides to the
+     centre at the shared hand-off size, and the flywheel site starts from that exact frame */
+  body.arriving #app, body.arriving #grid, body.arriving #rings, body.arriving #sound { opacity: 0; }
+  body.arrived #app, body.arrived #grid, body.arrived #rings, body.arrived #sound { transition: opacity .7s ease; }
+  body.leaving #app, body.leaving #grid, body.leaving #rings, body.leaving #sound {
+    opacity: 0; transition: opacity .45s ease; pointer-events: none;
+  }
+
+  footer {
+    display: flex; gap: 2ch; font-size: 12px; color: var(--faint);
+    opacity: var(--late);
+  }
+  footer button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  footer button:hover { color: var(--acc); }
+
+  @media (max-width: 760px) {
+    .hero { flex-direction: column; }
+    .banner-wrap { width: min(560px, 88vw); }
+    .deck { grid-template-columns: minmax(0, 1fr); }
+    .fly { order: -1; }
+    .term-body { font-size: 13px; }
+    .menu { margin-left: 0; column-gap: 1.5ch; }
+  }
 </style>
 </head>
-<body>Polymorphia</body>
+<body class="intro">
+<canvas id="rings" aria-hidden="true"></canvas>
+<div id="grid" aria-hidden="true"></div>
+<div id="spacer" aria-hidden="true"></div>
+
+<main id="app">
+  <header class="hero">
+    <h1 class="banner-wrap"><img id="banner" src="banner.png" alt="Polymorphia" width="2560" height="418"><span class="glint" aria-hidden="true"></span></h1>
+  </header>
+
+  <nav class="links late" aria-label="Links" inert>
+    <a class="tw" style="--i:0;--len:6" data-label="github" data-link="github" target="_blank" rel="noopener">
+      <span class="sig">$</span><span class="txt"></span><span class="caret"></span><span class="arr">↗</span></a>
+    <a class="tw" style="--i:1;--len:4" data-label="pypi" data-link="pypi" target="_blank" rel="noopener">
+      <span class="sig">$</span><span class="txt"></span><span class="caret"></span><span class="arr">↗</span></a>
+    <a class="tw" style="--i:2;--len:8" data-label="flywheel" data-link="flywheel">
+      <span class="sig">$</span><span class="txt"></span><span class="caret"></span><span class="arr">→</span></a>
+  </nav>
+
+  <section class="deck late" inert>
+    <div class="term" id="term">
+      <div class="term-bar"><span class="dots"><i></i><i></i><i></i></span><span class="term-title">guest@polymorphia: ~ — pmsh</span></div>
+      <div class="term-body" id="tbody">
+        <div class="out" id="out" aria-live="polite"></div>
+        <div class="prompt">
+          <span class="ps1"><span class="u">guest</span><span class="at">@</span><span class="h">polymorphia</span> <span class="d">~</span> <span class="s">❯</span></span>
+          <div class="field">
+            <div class="hl" id="hl" aria-hidden="true"></div>
+            <input id="cmd" type="text" disabled aria-label="Command" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go">
+          </div>
+        </div>
+        <div class="menu" id="menu" role="listbox" aria-label="Suggestions"></div>
+      </div>
+      <div class="chips"><span>try ›</span>
+        <button type="button" data-cmd="help">help</button>
+        <button type="button" data-cmd="gh">gh</button>
+        <button type="button" data-cmd="pypi">pypi</button>
+        <button type="button" data-cmd="fw">fw</button>
+        <button type="button" data-cmd="ls">ls</button>
+      </div>
+    </div>
+
+    <a class="fly" id="fly" href="https://flywheel.polymorphia.dev" aria-label="Flywheel — flywheel.polymorphia.dev">
+      <div class="fly-disc">
+        <svg viewBox="-112 -112 224 224" aria-hidden="true">
+          <defs><path id="orbitPath" d="M0,-102 A102,102 0 1 1 0,102 A102,102 0 1 1 0,-102"/></defs>
+          <g id="flyOrbit"><text class="orbit"><textPath href="#orbitPath" textLength="636" lengthAdjust="spacing">FLYWHEEL ✦ FLYWHEEL ✦ FLYWHEEL ✦ FLYWHEEL ✦ FLYWHEEL ✦ FLYWHEEL ✦ </textPath></text></g>
+        </svg>
+        <div class="logo-slot"></div>
+      </div>
+      <span class="fly-label"><b>flywheel</b><small>flywheel.polymorphia.dev <span>→</span></small></span>
+    </a>
+  </section>
+
+  <footer class="late" inert>
+    <span>© 2026 Polymorphia</span>
+    <button type="button" id="replay">↺ replay intro</button>
+  </footer>
+</main>
+
+<img id="logo" class="floating" src="logo.png" alt="" width="2000" height="2000">
+<button id="hint" type="button" aria-label="Play intro">scroll</button>
+<button id="gate" type="button" hidden><span>click to enter<small>best with sound</small></span></button>
+<button id="sound" type="button" aria-pressed="true" title="Toggle sound effects">♪ sound on</button>
+
+<script>
+(() => {
+  /* ------------------------------------------------------------------ config */
+  const LINKS = {
+    github:   "https://github.com/fwlang",          // TODO: confirm org URL
+    pypi:     "https://pypi.org/user/polymorphia/",      // TODO: confirm PyPI user/org URL
+    flywheel: "https://flywheel.polymorphia.dev",
+  };
+  const EMAIL = "hello@polymorphia.dev";
+  const INSTALL = {
+    sh:  { url: "https://flywheel.polymorphia.dev/install.sh",  cmd: "curl -fsSL https://flywheel.polymorphia.dev/install.sh | bash" },
+    ps1: { url: "https://flywheel.polymorphia.dev/install.ps1", cmd: "irm https://flywheel.polymorphia.dev/install.ps1 | iex" },
+  };
+  const platform = ((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || "").toLowerCase();
+  const OS = /win/.test(platform) ? "windows" : /mac|iphone|ipad/.test(platform) ? "macos" : "linux";
+  const REPOS = {
+    flywheel:          "https://github.com/fwlang/flywheel",
+    pulley:            "https://github.com/fwlang/pulley",
+    "vscode-flywheel": "https://github.com/fwlang/vscode-flywheel",
+  };
+
+  /* ------------------------------------------------------------------ utils */
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const root = document.documentElement, body = document.body;
+  const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+  const seg = (p, a, b) => clamp((p - a) / (b - a));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const eio = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const eout = t => 1 - Math.pow(1 - t, 3);
+  const esc = s => s.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ------------------------------------------------------------------ sfx (synthesized, no assets) */
+  // Browsers only allow audio after a click/tap/keypress (a scroll wheel doesn't count),
+  // so the context is created lazily on the first such gesture.
+  const SFX = (() => {
+    const btn = document.getElementById("sound");
+    let on = true;
+    try { on = localStorage.getItem("pm-sound") !== "off"; } catch {}
+    let ac = null, out, noise, whooshF, whooshG, humO, humO2, humG, lastTick = 0;
+
+    function init() {
+      if (ac) return;
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      ac = new AC();
+      const comp = ac.createDynamicsCompressor();
+      out = ac.createGain(); out.gain.value = on ? .7 : 0;
+      out.connect(comp).connect(ac.destination);
+
+      noise = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
+      const d = noise.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+
+      // continuous whoosh for the logo spin
+      const src = ac.createBufferSource(); src.buffer = noise; src.loop = true;
+      whooshF = ac.createBiquadFilter(); whooshF.type = "bandpass"; whooshF.Q.value = 1.2; whooshF.frequency.value = 300;
+      whooshG = ac.createGain(); whooshG.gain.value = 0;
+      src.connect(whooshF).connect(whooshG).connect(out); src.start();
+
+      // flywheel hum
+      humO = ac.createOscillator(); humO.type = "triangle"; humO.frequency.value = 55;
+      humO2 = ac.createOscillator(); humO2.type = "sine"; humO2.frequency.value = 110.6;
+      const lp = ac.createBiquadFilter(); lp.type = "lowpass"; lp.frequency.value = 900;
+      humG = ac.createGain(); humG.gain.value = 0;
+      humO.connect(lp); humO2.connect(lp); lp.connect(humG).connect(out);
+      humO.start(); humO2.start();
+    }
+    const ready = () => ac && on && ac.state === "running";
+
+    function unlock() { init(); if (ac && ac.state !== "running") ac.resume(); }
+    ["pointerdown", "keydown", "touchend"].forEach(ev => addEventListener(ev, unlock, { capture: true, passive: true }));
+    document.addEventListener("visibilitychange", () => {
+      if (!ac) return;
+      document.hidden ? ac.suspend() : ac.resume();
+    });
+
+    function paint() {
+      btn.textContent = on ? "♪ sound on" : "♪ sound off";
+      btn.setAttribute("aria-pressed", on);
+    }
+    paint();
+    btn.addEventListener("click", () => {
+      on = !on; paint();
+      try { localStorage.setItem("pm-sound", on ? "on" : "off"); } catch {}
+      init();
+      if (ac) out.gain.setTargetAtTime(on ? .7 : 0, ac.currentTime, .03);
+      if (on) setTimeout(() => blip(660, .08), 30);
+    });
+
+    function tone(f0, dur, { type = "sine", vol = .1, f1 = f0, attack = .004, at = 0 } = {}) {
+      if (!ready()) return;
+      const t = ac.currentTime + at, o = ac.createOscillator(), g = ac.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(f0, t);
+      if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(vol, t + attack);
+      g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+      o.connect(g).connect(out); o.start(t); o.stop(t + dur + .02);
+    }
+    function hiss(dur, freq, { vol = .1, q = 1, type = "bandpass", f1 = freq, at = 0 } = {}) {
+      if (!ready()) return;
+      const t = ac.currentTime + at, src = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain();
+      src.buffer = noise; f.type = type; f.Q.value = q;
+      f.frequency.setValueAtTime(freq, t);
+      if (f1 !== freq) f.frequency.exponentialRampToValueAtTime(f1, t + dur);
+      g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+      src.connect(f).connect(g).connect(out);
+      src.start(t, Math.random() * 1.5); src.stop(t + dur + .02);
+    }
+    const blip = (f = 880, vol = .06) => tone(f, .09, { type: "triangle", vol });
+
+    return {
+      blip,
+      // typewriter / keystroke click; throttled so fast typing doesn't turn into a buzz
+      tick(vol = .07) {
+        const n = performance.now(); if (n - lastTick < 28) return; lastTick = n;
+        hiss(.025, 2600 + Math.random() * 2200, { vol, q: 3 });
+      },
+      dock() {
+        tone(95, .4, { vol: .2, f1: 48, attack: .004 });
+        hiss(.18, 1800, { vol: .09, q: .8, f1: 500 });
+        tone(880, .35, { type: "triangle", vol: .03, at: .03 });
+      },
+      wake() {
+        tone(220, .9, { vol: .08, f1: 440, attack: .25 });
+        tone(330, .9, { vol: .04, f1: 660, attack: .3, at: .05 });
+      },
+      enter() { hiss(.05, 1400, { vol: .1, q: 2 }); tone(520, .07, { type: "triangle", vol: .04 }); },
+      err() { tone(180, .12, { type: "square", vol: .035 }); tone(135, .16, { type: "square", vol: .035, at: .09 }); },
+      boom() {
+        tone(140, .9, { vol: .3, f1: 38, attack: .006 });
+        hiss(1.1, 6000, { vol: .05, type: "highpass", f1: 2000 });
+        tone(1320, .7, { type: "sine", vol: .025, at: .04 });
+      },
+      launch() {
+        hiss(.9, 320, { vol: .09, q: .9, f1: 1600 });
+        tone(392, .9, { vol: .045, attack: .06 });
+        tone(588, 1.1, { vol: .03, attack: .08, at: .12 });
+      },
+      // continuous layers, driven every frame
+      update(spin, omega) {
+        if (!ac || ac.state !== "running") return;
+        const t = ac.currentTime, s = Math.abs(spin), w = Math.abs(omega);
+        whooshG.gain.setTargetAtTime(Math.min(.22, s * .035), t, .06);
+        whooshF.frequency.setTargetAtTime(Math.min(3500, 260 + s * 260), t, .06);
+        humO.frequency.setTargetAtTime(48 + w * .11, t, .08);
+        humO2.frequency.setTargetAtTime((48 + w * .11) * 2.012, t, .08);
+        humG.gain.setTargetAtTime(.07 * clamp((w - 30) / 900), t, .1);
+      },
+    };
+  })();
+
+  $$(".tw").forEach(a => a.href = LINKS[a.dataset.link]);
+
+  /* ------------------------------------------------- intro vs. straight to main */
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+  const params = new URLSearchParams(location.search);
+  const replay = params.has("replay");
+  if (replay) history.replaceState(null, "", location.pathname + location.hash);
+  const navEntry = performance.getEntriesByType("navigation")[0];
+  const navType = navEntry ? navEntry.type : "navigate";
+  // coming back from flywheel.polymorphia.dev: the logo is centred at the hand-off size there
+  const hs = new URLSearchParams(location.hash.slice(1));
+  const arrival = !reduced && hs.get("from") === "fw" && Math.abs(Date.now() - +hs.get("t")) < 4000
+    ? { a: +hs.get("a") || 0, w: +hs.get("w") || 0, s: +hs.get("s") || 0, t: +hs.get("t") } : null;
+  if (hs.get("from")) history.replaceState(null, "", location.pathname);
+  if (arrival) body.classList.add("arriving");
+  const skip = !replay && (navType === "reload" || navType === "back_forward" || reduced || location.hash === "#main" || !!hs.get("from"));
+
+  const logo = $("#logo"), slot = $(".logo-slot"), hint = $("#hint");
+  const flyOrbit = $("#flyOrbit"), fly = $("#fly"), gate = $("#gate");
+  const canvas = $("#rings"), ctx = canvas.getContext("2d");
+
+  if (logo.complete) logo.classList.add("ready"); else logo.onload = () => logo.classList.add("ready");
+
+  let target = 0, shown = skip ? 1 : 0, finished = false;
+  // once the wordmark is fully revealed, stop following the scrollbar and play the rest out
+  const AUTO_AT = .66, AUTO_DUR = 1.15;
+  let auto = null;
+  let logoAngle = 0, spinBoost = 0;
+  let flyAngle = 0, flyOmega = 0, flyHover = false;
+  const IDLE = 14;
+
+  function readTarget() {
+    const max = document.documentElement.scrollHeight - innerHeight;
+    target = max > 0 ? clamp(scrollY / max) : 0;
+  }
+  if (!skip) {
+    scrollTo(0, 0);
+    addEventListener("scroll", readTarget, { passive: true });
+  }
+
+  function setVars(p) {
+    root.style.setProperty("--b", eout(seg(p, .32, .74)).toFixed(4));
+    root.style.setProperty("--grid", seg(p, .35, 1).toFixed(4));
+    root.style.setProperty("--late", p >= 1 ? 1 : 0);   // revealed by a timed transition after the intro
+    hint.style.opacity = 1 - seg(p, 0, .08);
+
+    // logo lands in the flywheel button: spin kick + thud, then the timed light sweep
+    if (!fin && p >= .74) {
+      fin = { t: 0 };
+      spinBoost += 5;
+      SFX.dock();
+    }
+  }
+  // light sweep across the wordmark (timed, so it reads even though the autoplay is quick)
+  const FIN_DUR = 1.1;
+  function finale(dt) {
+    if (!fin || fin.done) return;
+    fin.t = Math.min(1, fin.t + dt / FIN_DUR);
+    const gl = seg(fin.t, .12, .85);
+    root.style.setProperty("--glint", eio(gl).toFixed(4));
+    root.style.setProperty("--glintA", Math.sin(Math.PI * gl).toFixed(3));
+    if (fin.t >= 1) { fin.done = true; root.style.setProperty("--glintA", 0); }
+  }
+  let fin = null;
+  // shell, buttons, flywheel label + footer transition in only once the intro is complete
+  const REVEAL_DUR = 1;
+  let reveal = null;
+  function revealStep(dt) {
+    if (!reveal) return;
+    reveal.t = Math.min(1, reveal.t + dt / REVEAL_DUR);
+    root.style.setProperty("--late", eout(reveal.t).toFixed(4));
+    if (reveal.t >= 1) reveal = null;
+  }
+  const shocks = [];
+
+  // geometry of the logo for a given progress, in viewport coordinates
+  function logoGeom(p) {
+    const r = slot.getBoundingClientRect();
+    const fx = r.left + r.width / 2, fy = r.top + r.height / 2;
+    const S = Math.min(innerWidth * .78, innerHeight * .62, 620);
+    const t = eio(seg(p, .04, .72));
+    const s = lerp(S / r.width, 1, t);
+    const cx = lerp(innerWidth / 2, fx, t), cy = lerp(innerHeight / 2, fy, t);
+    return { cx, cy, dx: cx - fx, dy: cy - fy, s, w: r.width, size: r.width * s };
+  }
+
+  /* ------------------------------------------------------------------ rings */
+  let seed = 11;
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const RINGS = Array.from({ length: 8 }, (_, i) => {
+    const n = 1 + Math.floor(rnd() * 3) + (i > 2 ? 1 : 0), segs = [];
+    for (let k = 0; k < n; k++) segs.push([k * Math.PI * 2 / n, (Math.PI * 2 / n) * (.42 + rnd() * .46)]);
+    return { segs, speed: (i % 2 ? 1 : -1) * (.035 + rnd() * .11), ang: rnd() * Math.PI * 2 };
+  });
+  let dpr = 1;
+  function sizeCanvas() {
+    dpr = Math.min(2, devicePixelRatio || 1);
+    canvas.width = innerWidth * dpr; canvas.height = innerHeight * dpr;
+  }
+  sizeCanvas();
+  addEventListener("resize", sizeCanvas);
+
+  function drawRings(g, p, dt) {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    for (let i = shocks.length - 1; i >= 0; i--) {
+      const sh = shocks[i];
+      sh.t += dt / sh.dur;
+      if (sh.t >= 1) { shocks.splice(i, 1); continue; }
+      const k = eout(sh.t);
+      ctx.beginPath(); ctx.arc(g.cx, g.cy, g.size * .5 * (1.05 + k * sh.grow), 0, Math.PI * 2);
+      ctx.lineWidth = Math.max(1, sh.w * (1 - k));
+      ctx.strokeStyle = `rgba(212,255,58,${sh.a * (1 - sh.t)})`;
+      ctx.stroke();
+    }
+    const alpha = finished ? .085 : .15 * seg(p, .02, .3) * (1 - .45 * seg(p, .7, 1));
+    if (alpha <= 0) return;
+    const R = g.size * .5;
+    const gap = lerp(.2, Math.max(.8, 90 / Math.max(R, 1)), eout(seg(p, .08, .95)));
+    ctx.lineCap = "butt";
+    RINGS.forEach((ring, i) => {
+      ring.ang += ring.speed * (1 + Math.abs(spinBoost)) * dt;
+      const r = R * (1.18 + i * gap);
+      ctx.lineWidth = Math.max(1, R * .17 * Math.pow(.84, i));
+      ctx.strokeStyle = `rgba(242,242,238,${alpha * Math.pow(.88, i)})`;
+      for (const [s0, len] of ring.segs) {
+        ctx.beginPath(); ctx.arc(g.cx, g.cy, r, ring.ang + s0, ring.ang + s0 + len); ctx.stroke();
+      }
+    });
+  }
+
+  /* ------------------------------------------------------------------ frame loop */
+  let last = performance.now(), prevShown = shown;
+  function frame(now) {
+    const dt = Math.min(.05, (now - last) / 1000); last = now;
+    if (!finished) {
+      if (!auto && shown >= AUTO_AT) {
+        auto = { from: target, t: 0 };
+        removeEventListener("scroll", readTarget);
+        root.classList.add("locked");            // no scrolling against the autoplay
+      }
+      if (auto) {
+        auto.t = Math.min(1, auto.t + dt / AUTO_DUR);
+        target = lerp(auto.from, 1, eio(auto.t));
+      }
+      shown += (target - shown) * (1 - Math.exp(-dt * 8));
+      if (Math.abs(target - shown) < .0004) shown = target;
+      if (target >= .998 && shown > .985) finish(false);
+    }
+    const p = finished ? 1 : shown;
+    const vel = (shown - prevShown) / Math.max(dt, 1e-3); prevShown = shown; // signed: up = CCW
+    spinBoost += (vel * 14 - spinBoost) * (1 - Math.exp(-dt * 4));
+
+    if (!finished) setVars(p);
+    const g = logoGeom(p);
+    // logo: floats free during the intro and docks into the flywheel button,
+    // where it becomes the flywheel itself (same mark, same spin)
+    if (finished) {
+      const goal = leave ? LEAVE_OMEGA : flyHover ? 620 : IDLE;
+      flyOmega += (goal - flyOmega) * (1 - Math.exp(-dt * (leave ? 1.2 : flyHover ? 1.6 : .55)));
+      flyAngle += flyOmega * dt;
+      if (leave) leaveStep(dt);
+      else if (comeback) comebackStep(dt);
+      else logo.style.transform = `rotate(${flyAngle % 360}deg)`;
+    } else {
+      logoAngle += (reduced ? 0 : 5 + spinBoost * 20) * dt;
+      const rot = logoAngle + eio(seg(p, 0, .8)) * 360;
+      flyAngle = rot;
+      logo.style.width = logo.style.height = g.w + "px";
+      logo.style.transform = `translate(${g.cx - g.w / 2}px, ${g.cy - g.w / 2}px) rotate(${rot}deg) scale(${g.s})`;
+    }
+    flyOrbit.setAttribute("transform", `rotate(${(-(finished ? flyAngle : p * 540) * .35) % 360})`);
+    fly.style.setProperty("--spin", clamp(Math.abs(flyOmega) / 1400).toFixed(3));
+
+    finale(dt);
+    revealStep(dt);
+    drawRings(g, p, dt);
+    SFX.update(spinBoost, finished ? flyOmega : 0);
+    requestAnimationFrame(frame);
+  }
+
+  /* ------------------------------------------------------------------ finish */
+  function finish(immediate) {
+    if (finished) return;
+    finished = true;
+    removeEventListener("scroll", readTarget);
+    setVars(1);
+    if (!immediate) { root.style.setProperty("--late", 0); reveal = { t: 0 }; }
+    body.classList.replace("intro", "main");
+    scrollTo(0, 0);
+    $$(".late").forEach(el => el.inert = false);
+    root.classList.remove("locked"); if (gate.isConnected) gate.remove();
+    if (arrival) {
+      // glide from the centre of the screen back into the flywheel button
+      const S = arrival.s || handoffSize();
+      flyAngle = arrival.a + arrival.w * clamp((Date.now() - arrival.t) / 1000, 0, 1.5);
+      logo.style.width = logo.style.height = S + "px";
+      logo.style.transition = "none"; logo.classList.add("ready");
+      comeback = { t: -.1, S };
+      comebackStep(0);
+      requestAnimationFrame(() => requestAnimationFrame(() => { body.classList.add("arrived"); body.classList.remove("arriving"); }));
+      flyOmega = arrival.w || 240;
+      runMain(immediate);
+      return;
+    }
+    logo.classList.replace("floating", "docked");
+    logo.style.width = logo.style.height = "";
+    slot.appendChild(logo);
+    if (!immediate) {
+      shocks.push({ t: 0, dur: 1.2, grow: 9, w: 3, a: .6 });
+      SFX.boom();
+    }
+    flyOmega = reduced ? IDLE : 900;
+    runMain(immediate);
+  }
+
+  /* ------------------------------------------------------------------ click-to-enter gate */
+  // scrolling stays locked until a click/tap/key, which is also what lets the browser start audio
+  if (!skip) {
+    root.classList.add("locked");
+    gate.hidden = false;
+    gate.focus({ preventScroll: true });
+    const enter = () => {
+      if (!root.classList.contains("locked")) return;
+      root.classList.remove("locked");
+      gate.classList.add("gone");
+      setTimeout(() => gate.remove(), 600);
+      removeEventListener("keydown", onKey, true);
+      setTimeout(() => SFX.wake(), 60);
+    };
+    const onKey = e => { if (!e.metaKey && !e.ctrlKey && !e.altKey && e.key !== "Tab") { e.preventDefault(); enter(); } };
+    gate.addEventListener("click", enter);
+    addEventListener("keydown", onKey, true);
+  } else gate.remove();
+
+  hint.addEventListener("click", () => {
+    scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+  });
+  $("#replay").addEventListener("click", () => { location.href = location.pathname + "?replay"; });
+
+  /* ------------------------------------------------------------------ typewriter buttons */
+  const GLYPHS = "#$%&*+=<>/\\|~^_01";
+  async function typeInto(btn, speed) {
+    const txt = $(".txt", btn), label = btn.dataset.label;
+    btn.classList.add("typing");
+    for (let i = 1; i <= label.length; i++) {
+      txt.textContent = label.slice(0, i);
+      SFX.tick(.05);
+      await sleep(speed + Math.random() * speed * .8);
+    }
+    await sleep(260);
+    btn.classList.remove("typing");
+    btn.dataset.done = "1";
+  }
+  function scramble(btn) {
+    if (!btn.dataset.done || btn._scr || reduced) return;
+    const txt = $(".txt", btn), label = btn.dataset.label;
+    let f = 0; const total = label.length * 3 + 4;
+    SFX.blip(700 + Math.random() * 500, .035);
+    btn._scr = setInterval(() => {
+      f++;
+      txt.textContent = [...label].map((c, i) => f > i * 3 + 4 ? c : GLYPHS[Math.random() * GLYPHS.length | 0]).join("");
+      if (f >= total) { clearInterval(btn._scr); btn._scr = null; txt.textContent = label; }
+    }, 22);
+  }
+  $$(".tw").forEach(b => {
+    b.addEventListener("mouseenter", () => scramble(b));
+    b.addEventListener("focus", () => scramble(b));
+  });
+
+  /* ------------------------------------------------------------------ flywheel button */
+  fly.addEventListener("mouseenter", () => flyHover = true);
+  fly.addEventListener("mouseleave", () => flyHover = false);
+  fly.addEventListener("focus", () => flyHover = true);
+  fly.addEventListener("blur", () => flyHover = false);
+  fly.addEventListener("click", e => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || reduced) return;
+    e.preventDefault();
+    launch();
+  });
+  // The hand-off: the logo leaves the button and glides to the centre of the viewport at
+  // HANDOFF size while everything else fades; flywheel.polymorphia.dev reads the angle and spin
+  // from the URL and starts its first frame exactly there.
+  const LEAVE_DUR = .8, LEAVE_OMEGA = 240;
+  const handoffSize = () => Math.round(Math.min(innerWidth, innerHeight, 800) * .3);
+  let leave = null;
+  function launch() {
+    if (leave || !finished) return;
+    flyHover = true;
+    flyOmega = Math.min(flyOmega + 300, 720);
+    SFX.launch();
+    const r = slot.getBoundingClientRect();
+    leave = { t: 0, x0: r.left + r.width / 2, y0: r.top + r.height / 2, w0: r.width, gone: false };
+    logo.classList.replace("docked", "floating");
+    logo.style.width = logo.style.height = r.width + "px";
+    body.appendChild(logo);
+    body.classList.add("leaving");
+    leaveStep(0);
+  }
+  function leaveStep(dt) {
+    leave.t = Math.min(1, leave.t + dt / LEAVE_DUR);
+    const k = eio(leave.t), S = handoffSize();
+    const cx = lerp(leave.x0, innerWidth / 2, k), cy = lerp(leave.y0, innerHeight / 2, k);
+    const sc = lerp(1, S / leave.w0, k);
+    logo.style.transform = `translate(${cx - leave.w0 / 2}px, ${cy - leave.w0 / 2}px) rotate(${flyAngle % 360}deg) scale(${sc})`;
+    if (leave.t >= 1 && !leave.gone) {
+      leave.gone = true;
+      const state = new URLSearchParams({ from: "pm", a: (flyAngle % 360).toFixed(2), w: flyOmega.toFixed(1), s: S, t: Date.now() });
+      location.href = LINKS.flywheel + "/#" + state;
+    }
+  }
+  let comeback = null;
+  function comebackStep(dt) {
+    comeback.t = Math.min(1, comeback.t + dt / .95);
+    const k = eio(clamp(comeback.t)), r = slot.getBoundingClientRect(), S = comeback.S;
+    const cx = lerp(innerWidth / 2, r.left + r.width / 2, k), cy = lerp(innerHeight / 2, r.top + r.height / 2, k);
+    logo.style.transform = `translate(${cx - S / 2}px, ${cy - S / 2}px) rotate(${flyAngle % 360}deg) scale(${lerp(1, r.width / S, k)})`;
+    if (comeback.t >= 1) {
+      comeback = null;
+      logo.classList.replace("floating", "docked");
+      logo.style.width = logo.style.height = "";
+      slot.appendChild(logo);
+      logo.style.transform = `rotate(${flyAngle % 360}deg)`;
+    }
+  }
+  function unleave() {
+    if (!leave) return;
+    leave = null; flyHover = false;
+    body.classList.remove("leaving");
+    logo.classList.replace("floating", "docked");
+    logo.style.width = logo.style.height = "";
+    slot.appendChild(logo);
+  }
+  addEventListener("pageshow", e => { if (e.persisted) unleave(); });
+  // warm the cache so the flywheel site's first frame is ready the moment we arrive
+  let warmed = false;
+  fly.addEventListener("pointerenter", () => {
+    if (warmed) return; warmed = true;
+    const l = document.createElement("link"); l.rel = "prefetch"; l.href = LINKS.flywheel + "/"; document.head.appendChild(l);
+    new Image().src = LINKS.flywheel + "/logo.png";
+  });
+
+  /* ------------------------------------------------------------------ shell */
+  const out = $("#out"), input = $("#cmd"), hl = $("#hl"), menu = $("#menu"), tbody = $("#tbody");
+  const PS1 = $(".ps1").outerHTML;
+  const hist = []; let hIdx = 0, draft = "";
+  let items = [], sel = -1, menuOff = false;
+
+  function openUrl(url, newTab = true) {
+    print(`<span class="o-dim">→ opening</span> <a href="${esc(url)}"${newTab ? ' target="_blank" rel="noopener"' : ""}>${esc(url)}</a>`);
+    if (!newTab) { setTimeout(() => location.href = url, 350); return; }
+    const w = window.open(url, "_blank");
+    if (w) w.opener = null;
+    else print(`<span class="o-dim">  popup blocked — click the link above</span>`);
+  }
+
+  const COMMANDS = [
+    { name: "help", desc: "list commands", run() {
+        print(`<span class="o-dim">commands:</span>`);
+        COMMANDS.filter(c => !c.hidden).forEach(c => {
+          const n = c.name + (c.alias ? `, ${c.alias.join(", ")}` : "");
+          print(`  <span class="o-acc">${n.padEnd(14)}</span><span class="o-dim">${c.desc}</span>`);
+        });
+        print(`<span class="o-dim">Tab completes · ↑↓ browse · Ctrl+L clears</span>`);
+    } },
+    { name: "github", alias: ["gh"], desc: "Polymorphia on GitHub", args: Object.keys(REPOS), run(a) {
+        if (!a[0]) return openUrl(LINKS.github);
+        if (!REPOS[a[0]]) return print(`<span class="o-err">gh: no such repo: ${esc(a[0])}</span> <span class="o-dim">(try: ${Object.keys(REPOS).join(", ")})</span>`);
+        openUrl(REPOS[a[0]]);
+    } },
+    { name: "pypi", desc: "Polymorphia on PyPI", run(a) {
+        openUrl(a[0] ? `https://pypi.org/project/${encodeURIComponent(a[0])}/` : LINKS.pypi);
+    } },
+    { name: "flywheel", alias: ["fw"], desc: "go to flywheel.polymorphia.dev", run() {
+        print(`<span class="o-dim">→ opening</span> <a href="${LINKS.flywheel}">flywheel.polymorphia.dev</a>`);
+        if (reduced) setTimeout(() => location.href = LINKS.flywheel, 350); else setTimeout(launch, 250);
+    } },
+    { name: "install", desc: "install Flywheel (install.sh / install.ps1)", args: ["sh", "ps1"], run(a) {
+        const kind = a[0] === "ps1" || a[0] === "sh" ? a[0] : OS === "windows" ? "ps1" : "sh";
+        const it = INSTALL[kind];
+        if (!a[0] && OS === "macos") print(`<span class="o-err">macOS isn't supported yet</span> <span class="o-dim">— Flywheel builds on Linux and Windows</span>`);
+        print(`<span class="o-dim">run this in ${kind === "ps1" ? "PowerShell" : "a terminal"}:</span>`);
+        print(`  <span class="o-acc">${esc(it.cmd)}</span>`);
+        openUrl(it.url);
+    } },
+    { name: "contact", desc: "write to " + EMAIL, run() {
+        print(`<span class="o-dim">→ opening your mail client for</span> <a href="mailto:${EMAIL}">${EMAIL}</a>`);
+        location.href = "mailto:" + EMAIL;
+    } },
+    { name: "email", desc: "print the email address", run() { print(`<a href="mailto:${EMAIL}">${EMAIL}</a>`); } },
+    { name: "reload", desc: "reload the page", run() {
+        print(`<span class="o-dim">reloading…</span>`);
+        setTimeout(() => location.reload(), 200);
+    } },
+    { name: "open", desc: "open a link by name", args: ["github", "pypi", "flywheel", "install"], run(a) {
+        const c = a[0] && resolve(a[0]);
+        if (!c || !["github", "pypi", "flywheel", "install"].includes(c.name)) return print(`<span class="o-err">open: ${a[0] ? "unknown link: " + esc(a[0]) : "missing operand"}</span>`);
+        c.run([]);
+    } },
+    { name: "ls", desc: "list links", run() {
+        print(`<span class="o-cyan">github@</span>  <span class="o-cyan">pypi@</span>  <span class="o-vio">flywheel/</span>`);
+    } },
+    { name: "cd", desc: "change directory", args: ["flywheel", "~"], run(a) {
+        if (a[0] && a[0].replace(/\/$/, "") === "flywheel") return COMMANDS.find(c => c.name === "flywheel").run([]);
+        if (!a[0] || a[0] === "~") return;
+        print(`<span class="o-err">cd: no such directory: ${esc(a[0])}</span>`);
+    } },
+    { name: "clear", desc: "clear the screen", run() { out.innerHTML = ""; } },
+    { name: "echo", desc: "print text", run(a, raw) { print(esc(raw.replace(/^\s*\S+\s?/, "").replace(/^(["'])(.*)\1$/, "$2"))); } },
+    { name: "whoami", desc: "who are you", run() { print("guest"); } },
+    { name: "date", desc: "print the date", run() { print(new Date().toString()); } },
+    { name: "history", desc: "command history", run() { hist.forEach((h, i) => print(`<span class="o-dim">${String(i + 1).padStart(4)}</span>  ${highlight(h)}`)); } },
+    { name: "sudo", hidden: true, desc: "", run() { print(`<span class="o-err">guest is not in the sudoers file. This incident will be reported.</span>`); } },
+    { name: "exit", hidden: true, desc: "", run() { print(`<span class="o-dim">there is no exit, only transformation.</span>`); } },
+  ];
+  const resolve = n => COMMANDS.find(c => c.name === n || (c.alias && c.alias.includes(n)));
+  const NAMES = COMMANDS.filter(c => !c.hidden).flatMap(c => [c.name, ...(c.alias || [])]);
+
+  function highlight(str) {
+    let html = "", idx = 0, cmd = null;
+    for (const part of str.split(/(\s+)/)) {
+      if (!part) continue;
+      if (/^\s+$/.test(part)) { html += part; continue; }
+      let cls;
+      if (idx === 0) {
+        cmd = resolve(part);
+        cls = cmd ? "t-cmd" : NAMES.some(n => n.startsWith(part)) ? "t-pre" : "t-bad";
+      } else if (part.startsWith("-")) cls = "t-flag";
+      else if (/^["']/.test(part)) cls = "t-str";
+      else if (cmd && cmd.args && cmd.args.includes(part)) cls = "t-path";
+      else cls = "t-arg";
+      html += `<span class="${cls}">${esc(part)}</span>`;
+      idx++;
+    }
+    return html;
+  }
+
+  function completions(v) {
+    let m;
+    if ((m = v.match(/^(\S+)$/))) {
+      return NAMES.filter(n => n.startsWith(m[1])).map(n => {
+        const c = resolve(n);
+        return { value: n, label: n, desc: c.name !== n ? `→ ${c.name}` : c.desc };
+      });
+    }
+    if ((m = v.match(/^(\S+)(\s+)(\S*)$/))) {
+      const c = resolve(m[1]);
+      if (!c || !c.args) return [];
+      return c.args.filter(a => a.startsWith(m[3])).map(a => ({
+        value: m[1] + m[2] + a, label: a,
+        desc: c.name === "github" ? REPOS[a].replace("https://", "") : "",
+      }));
+    }
+    return [];
+  }
+
+  function render() {
+    const v = input.value;
+    const atEnd = input.selectionStart === v.length;
+    const top = items[sel >= 0 ? sel : 0];
+    const ghost = !menuOff && atEnd && top && top.value.startsWith(v) && top.value !== v ? top.value.slice(v.length) : "";
+    hl.innerHTML = highlight(v) + (ghost ? `<span class="ghost">${esc(ghost)}</span>` : "");
+    hl.scrollLeft = input.scrollLeft;
+    const show = !menuOff && items.length && !(items.length === 1 && items[0].value === v);
+    menu.innerHTML = show ? items.map((it, i) =>
+      `<div class="it${i === sel ? " sel" : ""}" role="option" aria-selected="${i === sel}" data-i="${i}"><span class="nm">${esc(it.label)}</span><span class="ds">${esc(it.desc)}</span></div>`
+    ).join("") : "";
+    tbody.scrollTop = tbody.scrollHeight;
+  }
+
+  function refresh() { items = completions(input.value); sel = -1; render(); }
+
+  function print(html) {
+    out.insertAdjacentHTML("beforeend", `<div class="ln">${html}</div>`);
+    tbody.scrollTop = tbody.scrollHeight;
+  }
+
+  function run(raw) {
+    const v = raw.trim();
+    print(`${PS1} ${highlight(raw)}`);
+    if (!v) return;
+    if (hist[hist.length - 1] !== v) hist.push(v);
+    hIdx = hist.length;
+    const [name, ...args] = v.split(/\s+/);
+    const c = resolve(name);
+    if (!c) {
+      SFX.err();
+      const near = NAMES.find(n => n.startsWith(name.slice(0, 2)));
+      return print(`<span class="o-err">pmsh: command not found: ${esc(name)}</span>${near ? ` <span class="o-dim">— did you mean <span class="o-acc">${near}</span>?</span>` : ""}`);
+    }
+    c.run(args, v);
+  }
+
+  function setValue(v) { input.value = v; input.setSelectionRange(v.length, v.length); }
+
+  input.addEventListener("input", () => { menuOff = false; refresh(); });
+  input.addEventListener("keydown", e => {
+    const showing = menu.childElementCount > 0;
+    if (e.key.length === 1 || e.key === "Backspace") SFX.tick();
+    if (e.key === "Enter") {
+      e.preventDefault(); SFX.enter();
+      const v = input.value; setValue(""); menuOff = false; items = []; sel = -1;
+      run(v); render();
+    } else if (e.key === "Tab") {
+      if (!input.value) return;            // let Tab move focus on an empty prompt
+      e.preventDefault();
+      if (!items.length) return;
+      if (items.length === 1 || (sel < 0 && items[0].value.startsWith(input.value) && items.every(i => i.value.startsWith(items[0].value)))) {
+        setValue(items[0].value + (resolve(items[0].value) && resolve(items[0].value).args ? " " : ""));
+        menuOff = false; refresh();
+      } else {
+        sel = (sel + (e.shiftKey ? -1 : 1) + items.length) % items.length;
+        setValue(items[sel].value); render();
+      }
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const dir = e.key === "ArrowDown" ? 1 : -1;
+      if (showing) {
+        sel = sel < 0 ? (dir > 0 ? 0 : items.length - 1) : (sel + dir + items.length) % items.length;
+        setValue(items[sel].value); render();
+      } else if (hist.length) {
+        if (hIdx === hist.length) draft = input.value;
+        hIdx = clamp(hIdx + dir, 0, hist.length);
+        setValue(hIdx === hist.length ? draft : hist[hIdx]);
+        menuOff = true; items = completions(input.value); render();
+      }
+    } else if (e.key === "ArrowRight" && input.selectionStart === input.value.length) {
+      const top = items[sel >= 0 ? sel : 0];
+      if (top && !menuOff && top.value.startsWith(input.value) && top.value !== input.value) { e.preventDefault(); setValue(top.value); refresh(); }
+    } else if (e.key === "Escape") {
+      menuOff = true; render();
+    } else if (e.ctrlKey && e.key.toLowerCase() === "l") {
+      e.preventDefault(); out.innerHTML = ""; render();
+    } else if (e.ctrlKey && e.key.toLowerCase() === "c" && input.selectionStart === input.selectionEnd) {
+      e.preventDefault(); print(`${PS1} ${highlight(input.value)}<span class="o-dim">^C</span>`); setValue(""); refresh();
+    }
+  });
+  ["keyup", "click", "select"].forEach(ev => input.addEventListener(ev, () => { hl.scrollLeft = input.scrollLeft; }));
+  input.addEventListener("scroll", () => { hl.scrollLeft = input.scrollLeft; });
+
+  menu.addEventListener("mousedown", e => {
+    const it = e.target.closest(".it"); if (!it) return;
+    e.preventDefault();
+    const v = items[+it.dataset.i].value;
+    setValue(v + (resolve(v) && resolve(v).args && !v.includes(" ") ? " " : ""));
+    input.focus(); refresh();
+  });
+  tbody.addEventListener("mouseup", () => { if (!getSelection().toString() && !input.disabled) input.focus({ preventScroll: true }); });
+  $$(".chips button").forEach(b => b.addEventListener("click", () => {
+    if (input.disabled) return;
+    SFX.enter();
+    run(b.dataset.cmd); input.focus({ preventScroll: true }); render();
+  }));
+
+  async function typeLine(text, cls, speed) {
+    const el = document.createElement("div");
+    el.className = "ln " + (cls || "");
+    out.appendChild(el);
+    if (!speed) { el.textContent = text; return; }
+    for (let i = 1; i <= text.length; i++) { el.textContent = text.slice(0, i); SFX.tick(.03); await sleep(speed); }
+  }
+
+  async function bootShell(fast) {
+    const sp = fast || reduced ? 0 : 11;
+    await typeLine("pmsh 1.0 — the polymorphia shell", "o-acc", sp);
+    await typeLine("type `help` for commands, Tab to complete, ↑↓ for history.", "o-dim", sp && 7);
+    print("");
+    input.disabled = false;
+    if (matchMedia("(pointer: fine)").matches) input.focus({ preventScroll: true });
+  }
+
+  async function runMain(fast) {
+    const btns = $$(".tw");
+    btns.forEach((b, i) => setTimeout(() => typeInto(b, reduced ? 0 : 55), (fast ? 120 : 260) + i * 280));
+    await sleep(fast ? 250 : 520);
+    bootShell(fast);
+  }
+
+  /* ------------------------------------------------------------------ go */
+  if (skip) finish(true); else { readTarget(); setVars(0); }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
 </html>
