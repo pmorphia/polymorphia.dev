@@ -280,6 +280,31 @@
   body.leaving #app, body.leaving #grid, body.leaving #rings, body.leaving #sound {
     opacity: 0; transition: opacity .45s ease; pointer-events: none;
   }
+  /* flywheel.polymorphia.dev, loaded underneath for the first stage of the hand-off: it plays the
+     arrival while this page plays the sound, then this page navigates to it for real */
+  #relay, .relay {
+    position: fixed; inset: 0; width: 100%; height: 100%; border: 0; z-index: 2;
+    background: var(--bg); color-scheme: dark; opacity: 0; pointer-events: none;
+  }
+  #relay.live, .relay.live { opacity: 1; }
+
+  /* hand-off to pulley.polymorphia.dev: a rope drops from a pulley wheel, hooks the "$ pulley"
+     button and hoists it up into pulley's search bar (the same box, to the pixel) */
+  body.pulling #app, body.pulling #grid, body.pulling #rings, body.pulling #sound {
+    opacity: 0; transition: opacity .45s ease; pointer-events: none;
+  }
+  #plGhost {
+    position: fixed; left: 0; top: 0; z-index: 6; pointer-events: none; isolation: isolate; overflow: hidden;
+    display: flex; align-items: center; gap: 1ch; padding: 0 18px; box-sizing: border-box; white-space: nowrap;
+    font: 15px var(--mono); border: 1px solid var(--acc); background: rgba(255,255,255,.015); will-change: transform;
+  }
+  #plGhost .fill { position: absolute; inset: -1px; z-index: -1; background: var(--acc); transform-origin: right; }
+  #plGhost .arr { margin-left: auto; }
+  #plRope { position: fixed; left: 0; top: 0; z-index: 6; width: 2px; background: var(--acc); transform-origin: 50% 0; pointer-events: none; box-shadow: 0 0 10px rgba(212,255,58,.35); }
+  #plWheel { position: fixed; left: 0; top: 0; z-index: 7; pointer-events: none; will-change: transform; }
+  #plWheel img { position: absolute; left: -10%; top: -10%; width: 120%; height: 120%; max-width: none; display: block; }
+  html.relaying { scrollbar-gutter: auto; overflow: hidden; }
+  body.leaving #logo.floating { z-index: 5; }
 
   footer {
     display: flex; gap: 2ch; font-size: 12px; color: var(--faint);
@@ -313,7 +338,7 @@
       <span class="sig">$</span><span class="txt"></span><span class="caret"></span><span class="arr">↗</span></a>
     <a class="tw" style="--i:1;--len:4" data-label="pypi" data-link="pypi" target="_blank" rel="noopener">
       <span class="sig">$</span><span class="txt"></span><span class="caret"></span><span class="arr">↗</span></a>
-    <a class="tw" style="--i:2;--len:8" data-label="flywheel" data-link="flywheel">
+    <a class="tw" style="--i:2;--len:6" data-label="pulley" data-link="pulley">
       <span class="sig">$</span><span class="txt"></span><span class="caret"></span><span class="arr">→</span></a>
   </nav>
 
@@ -370,6 +395,7 @@
     github:   "https://github.com/fwlang",          // TODO: confirm org URL
     pypi:     "https://pypi.org/user/polymorphia/",      // TODO: confirm PyPI user/org URL
     flywheel: "https://flywheel.polymorphia.dev",
+    pulley:   "https://pulley.polymorphia.dev",
   };
   const EMAIL = "hello@polymorphia.dev";
   const INSTALL = {
@@ -501,6 +527,31 @@
         hiss(1.1, 6000, { vol: .05, type: "highpass", f1: 2000 });
         tone(1320, .7, { type: "sine", vol: .025, at: .04 });
       },
+      get on() { return on; },
+      // pulley: one tooth of the wheel's ratchet
+      click(pitch = 1) {
+        const n = performance.now(), gap = n - lastTick; if (gap < 30) return; lastTick = n;
+        const v = .35 + .65 * clamp((gap - 30) / 110);   // fast teeth purr rather than buzz
+        hiss(.022, 3400 * pitch, { vol: .09 * v, q: 4 });
+        tone(1900 * pitch, .03, { type: "triangle", vol: .018 * v });
+      },
+      // the rope paying out, the hook catching the button, the rope coming loose
+      drop() { hiss(.42, 2600, { vol: .05, q: .8, f1: 700 }); },
+      hook() { tone(1320, .09, { type: "triangle", vol: .05 }); hiss(.04, 4200, { vol: .07, q: 3 }); tone(220, .14, { vol: .08, f1: 160 }); },
+      snap() { hiss(.06, 1800, { vol: .1, q: 1.4 }); tone(620, .12, { type: "triangle", vol: .03, f1: 880 }); },
+      // the hoisted button arriving at the top
+      thunk() { tone(130, .22, { vol: .12, f1: 80, attack: .003 }); hiss(.05, 1500, { vol: .05, q: 1 }); },
+      // the logo lands in flywheel.polymorphia.dev's header: a small, light version of dock()
+      land() {
+        tone(170, .26, { vol: .13, f1: 85, attack: .003 });
+        hiss(.1, 2600, { vol: .06, q: 1.1, f1: 900 });
+        tone(1175, .32, { type: "triangle", vol: .022, at: .025 });
+      },
+      // panels of the flywheel interface appearing
+      pane(i) { hiss(.03, 3200 + i * 260, { vol: .035, q: 3 }); },
+      // fade everything out before the page goes away, and back in if it comes back (bfcache)
+      hush() { if (ac) out.gain.setTargetAtTime(0, ac.currentTime, .05); },
+      unhush() { if (ac) out.gain.setTargetAtTime(on ? .7 : 0, ac.currentTime, .03); },
       launch() {
         hiss(.9, 320, { vol: .09, q: .9, f1: 1600 });
         tone(392, .9, { vol: .045, attack: .06 });
@@ -532,8 +583,11 @@
   const hs = new URLSearchParams(location.hash.slice(1));
   const arrival = !reduced && hs.get("from") === "fw" && Math.abs(Date.now() - +hs.get("t")) < 4000
     ? { a: +hs.get("a") || 0, w: +hs.get("w") || 0, s: +hs.get("s") || 0, t: +hs.get("t") } : null;
+  // coming back from pulley.polymorphia.dev: its search bar, wheel and rope are on screen there
+  const plArrival = !reduced && hs.get("from") === "pl" && Math.abs(Date.now() - +hs.get("t")) < 4000
+    ? { a: +hs.get("a") || 0, bl: +hs.get("bl"), bt: +hs.get("bt"), bw: +hs.get("bw"), bh: +hs.get("bh"), wx: +hs.get("wx"), wy: +hs.get("wy") || 28, ws: +hs.get("ws") || 40 } : null;
   if (hs.get("from")) history.replaceState(null, "", location.pathname);
-  if (arrival) body.classList.add("arriving");
+  if (arrival || plArrival) body.classList.add("arriving");
   const skip = !replay && (navType === "reload" || navType === "back_forward" || reduced || location.hash === "#main" || !!hs.get("from"));
 
   const logo = $("#logo"), slot = $(".logo-slot"), hint = $("#hint");
@@ -678,7 +732,8 @@
     // where it becomes the flywheel itself (same mark, same spin)
     if (finished) {
       const goal = leave ? LEAVE_OMEGA : flyHover ? 620 : IDLE;
-      flyOmega += (goal - flyOmega) * (1 - Math.exp(-dt * (leave ? 1.2 : flyHover ? 1.6 : .55)));
+      if (relay && relay.go) flyOmega = relay.w;
+      else flyOmega += (goal - flyOmega) * (1 - Math.exp(-dt * (leave ? 1.2 : flyHover ? 1.6 : .55)));
       flyAngle += flyOmega * dt;
       if (leave) leaveStep(dt);
       else if (comeback) comebackStep(dt);
@@ -696,7 +751,8 @@
     finale(dt);
     revealStep(dt);
     drawRings(g, p, dt);
-    SFX.update(spinBoost, finished ? flyOmega : 0);
+    if (relay && relay.go) relay.whoosh *= Math.exp(-dt * 6);   // decays unless the flight keeps feeding it
+    SFX.update(relay && relay.go ? relay.whoosh : spinBoost, finished ? flyOmega : 0);
     requestAnimationFrame(frame);
   }
 
@@ -732,6 +788,7 @@
       SFX.boom();
     }
     flyOmega = reduced ? IDLE : 900;
+    if (plArrival) lowerFromPulley();
     runMain(immediate);
   }
 
@@ -799,14 +856,58 @@
     e.preventDefault();
     launch();
   });
-  // The hand-off: the logo leaves the button and glides to the centre of the viewport at
-  // HANDOFF size while everything else fades; flywheel.polymorphia.dev reads the angle and spin
-  // from the URL and starts its first frame exactly there.
-  const LEAVE_DUR = .8, LEAVE_OMEGA = 240;
+  // The hand-off, in two stages so the sound can play all the way through (a page can only play
+  // audio after a click on it, and the click happened here):
+  //   1. the logo leaves the button and glides to the centre at HANDOFF size while everything else
+  //      fades. Meanwhile flywheel.polymorphia.dev loads, hidden, in a full-screen iframe.
+  //   2. the iframe takes over the logo at that exact frame and plays its arrival, the logo flying
+  //      into its header and the interface fading in, reporting each step so the sound follows.
+  // When it has settled, this page navigates to flywheel.polymorphia.dev, which opens in that same
+  // settled state. If the iframe isn't ready in time, the one-step hand-off (#from=pm) is used.
+  const LEAVE_DUR = .8, LEAVE_OMEGA = 240, RELAY_WAIT = 2600;
+  const FLY_ORIGIN = new URL(LINKS.flywheel).origin;
   const handoffSize = () => Math.round(Math.min(innerWidth, innerHeight, 800) * .3);
-  let leave = null;
+  let leave = null, relay = null;
+  function openRelay() {
+    if (relay) return;
+    const f = document.createElement("iframe");
+    f.id = "relay"; f.title = "flywheel.polymorphia.dev"; f.tabIndex = -1;
+    f.setAttribute("aria-hidden", "true");
+    f.src = LINKS.flywheel + "/#embed=pm";
+    relay = { frame: f, ready: false, go: false, w: 0, k: 0, kt: 0, whoosh: 0, t0: performance.now() };
+    body.appendChild(f);
+  }
+  function closeRelay() {
+    if (!relay) return;
+    relay.frame.remove(); relay = null;
+    root.classList.remove("relaying");
+    logo.style.visibility = "";
+  }
+  function directHandoff(S) {
+    closeRelay();
+    const state = new URLSearchParams({ from: "pm", a: (flyAngle % 360).toFixed(2), w: flyOmega.toFixed(1), s: S, t: Date.now() });
+    location.href = LINKS.flywheel + "/#" + state;
+  }
+  addEventListener("message", e => {
+    if (!relay || e.origin !== FLY_ORIGIN || e.source !== relay.frame.contentWindow || !e.data) return;
+    const m = e.data;
+    if (m.type === "fw-ready") relay.ready = true;
+    else if (m.type === "fw-live") logo.style.visibility = "hidden";
+    else if (m.type === "fw-tick") {
+      const now = performance.now(), dt = Math.max(.008, (now - relay.kt) / 1000);
+      if (relay.kt) relay.whoosh = Math.max(relay.whoosh, clamp((m.k - relay.k) / dt, 0, 3) * 2.4);
+      relay.k = m.k; relay.kt = now; relay.w = m.w;
+    } else if (m.type === "fw-docked") SFX.land();
+    else if (m.type === "fw-ui") SFX.pane(m.i);
+    else if (m.type === "fw-settled") {
+      SFX.hush();
+      const state = new URLSearchParams({ from: "pm-settled", a: m.a, w: m.w, t: m.t });
+      setTimeout(() => location.href = LINKS.flywheel + "/#" + state, 120);
+    }
+  });
   function launch() {
     if (leave || !finished) return;
+    openRelay();
     flyHover = true;
     flyOmega = Math.min(flyOmega + 300, 720);
     SFX.launch();
@@ -824,10 +925,17 @@
     const cx = lerp(leave.x0, innerWidth / 2, k), cy = lerp(leave.y0, innerHeight / 2, k);
     const sc = lerp(1, S / leave.w0, k);
     logo.style.transform = `translate(${cx - leave.w0 / 2}px, ${cy - leave.w0 / 2}px) rotate(${flyAngle % 360}deg) scale(${sc})`;
+    // at the centre: hand the logo to the iframe once it's ready, holding here (still spinning) until then
     if (leave.t >= 1 && !leave.gone) {
-      leave.gone = true;
-      const state = new URLSearchParams({ from: "pm", a: (flyAngle % 360).toFixed(2), w: flyOmega.toFixed(1), s: S, t: Date.now() });
-      location.href = LINKS.flywheel + "/#" + state;
+      if (relay && relay.ready) {
+        leave.gone = true; relay.go = true; relay.w = flyOmega;
+        relay.frame.classList.add("live");
+        root.classList.add("relaying");   // full width, like the flywheel page: no scrollbar gutter
+        relay.frame.contentWindow.postMessage({ type: "pm-go", a: +(flyAngle % 360).toFixed(2), w: +flyOmega.toFixed(1), s: S, t: Date.now() }, FLY_ORIGIN);
+      } else if (!relay || performance.now() - relay.t0 > RELAY_WAIT) {
+        leave.gone = true;
+        directHandoff(S);
+      }
     }
   }
   let comeback = null;
@@ -845,6 +953,9 @@
     }
   }
   function unleave() {
+    closeRelay();
+    plClose();
+    SFX.unhush();
     if (!leave) return;
     leave = null; flyHover = false;
     body.classList.remove("leaving");
@@ -860,6 +971,183 @@
     const l = document.createElement("link"); l.rel = "prefetch"; l.href = LINKS.flywheel + "/"; document.head.appendChild(l);
     new Image().src = LINKS.flywheel + "/logo.png";
   });
+
+  /* ------------------------------------------------------------------ pulley button */
+  // The hand-off to pulley.polymorphia.dev, in the same two stages as the flywheel one:
+  //   1. here: everything fades but the button; a pulley wheel appears at the top and drops a rope
+  //      that hooks the button, then hoists it up into the box of pulley's search bar (pulley,
+  //      loaded hidden in a full-width iframe, reports that box and the wheel's spot).
+  //   2. in the iframe: the rope reels in, the wheel rolls into pulley's header and the packages
+  //      are hoisted in, reporting each step so the sound plays here. When it has settled, this
+  //      page navigates to pulley, which opens in that same state.
+  const PL_ORIGIN = new URL(LINKS.pulley).origin;
+  const PL_MARK = `<img src="logo.png" alt="" width="2000" height="2000" draggable="false">`;
+  const plChip = $('.tw[data-link="pulley"]');
+  const DEG = 180 / Math.PI;
+  const C_BG = [8, 8, 10], C_FG = [242, 242, 238], C_ACC = [212, 255, 58], C_DIM = [139, 139, 148], C_LINE = [38, 38, 45], C_LINE2 = [44, 44, 53];
+  const mix = (a, b, k) => `rgb(${a.map((v, i) => Math.round(lerp(v, b[i], k))).join(",")})`;
+  function pullEls() {
+    const ghost = document.createElement("div"); ghost.id = "plGhost"; ghost.setAttribute("aria-hidden", "true");
+    ghost.innerHTML = `<span class="fill"></span><span class="sig">$</span><span class="txt">pulley</span><span class="arr">→</span>`;
+    const rope = document.createElement("div"); rope.id = "plRope";
+    const wheel = document.createElement("div"); wheel.id = "plWheel"; wheel.innerHTML = PL_MARK;
+    body.append(ghost, rope, wheel);
+    return { ghost, rope, wheel };
+  }
+  // fill: 1 = the hovered button (lime), 0 = unfilled; arrow: its opacity; border: its colour
+  function setGhost(g, x, y, w, h, fill, arrow, border) {
+    g.style.width = w + "px"; g.style.height = h + "px";
+    g.style.transform = `translate(${x}px, ${y}px)`;
+    g.style.borderColor = border;
+    g.firstChild.style.transform = `scaleX(${fill})`;
+    g.style.color = mix(C_FG, C_BG, fill);
+    g.children[1].style.color = mix(C_ACC, C_BG, fill);
+    g.children[3].style.color = mix(C_DIM, C_BG, fill);
+    g.children[3].style.opacity = arrow;
+  }
+  function drawRope(el, x0, y0, x1, y1) {
+    const dx = x1 - x0, dy = y1 - y0;
+    el.style.height = Math.max(0, Math.hypot(dx, dy)) + "px";
+    el.style.transform = `translate(${x0 - 1}px, ${y0}px) rotate(${Math.atan2(-dx, dy)}rad)`;
+  }
+  function drawWheel(el, cx, cy, size, angle, opacity = 1) {
+    el.style.width = el.style.height = size + "px";
+    el.style.opacity = opacity;
+    el.style.transform = `translate(${cx - size / 2}px, ${cy - size / 2}px) rotate(${angle % 360}deg)`;
+  }
+
+  let pull = null, plFrame = null, plReady = null;
+  // load pulley underneath ahead of time (on hover), laid out at the full width it will have
+  function plPrepare() {
+    if (plFrame) return;
+    plFrame = document.createElement("iframe");
+    plFrame.className = "relay"; plFrame.title = "pulley.polymorphia.dev"; plFrame.tabIndex = -1;
+    plFrame.setAttribute("aria-hidden", "true");
+    plFrame.style.width = innerWidth + "px";
+    plFrame.src = LINKS.pulley + "/#embed=pm";
+    plReady = null;
+    body.appendChild(plFrame);
+  }
+  function plClose() {
+    if (plFrame) { plFrame.remove(); plFrame = null; plReady = null; }
+    if (pull) { pull.ghost.remove(); pull.rope.remove(); pull.wheel.remove(); pull = null; }
+    plChip.style.visibility = "";
+    body.classList.remove("pulling");
+    root.classList.remove("relaying");
+  }
+  addEventListener("message", e => {
+    if (!plFrame || e.origin !== PL_ORIGIN || e.source !== plFrame.contentWindow || !e.data) return;
+    const m = e.data;
+    if (m.type === "pl-ready") plReady = { bar: m.bar, spot: m.wheel };
+    if (!pull) return;
+    if (m.type === "pl-live") { pull.ghost.style.display = pull.rope.style.display = pull.wheel.style.display = "none"; pull.live = true; }
+    else if (m.type === "pl-click") SFX.click(m.p || 1);
+    else if (m.type === "pl-snap") SFX.snap();
+    else if (m.type === "pl-row") SFX.pane(m.i || 0);
+    else if (m.type === "pl-docked") SFX.land();
+    else if (m.type === "pl-settled") {
+      SFX.hush();
+      const state = new URLSearchParams({ from: "pm-settled", a: m.a, snd: SFX.on ? 1 : 0, t: m.t });
+      setTimeout(() => location.href = LINKS.pulley + "/#" + state, 120);
+    }
+  });
+  function pullLaunch() {
+    if (pull || leave || !finished) return;
+    if (reduced) { location.href = LINKS.pulley; return; }
+    plPrepare();
+    const r = plChip.getBoundingClientRect();
+    pull = Object.assign(pullEls(), {
+      R: { x: r.left, y: r.top, w: r.width, h: r.height }, t: 0, t0: performance.now(), last: performance.now(),
+      phase: "hook", angle: 0, tooth: 0, hookAngle: 0, Lhook: 0, ht: 0, live: false,
+      spot: (plReady && plReady.spot) || { cx: innerWidth / 2, cy: 28, size: 40 },
+    });
+    setGhost(pull.ghost, r.left, r.top, r.width, r.height, 1, 1, mix(C_ACC, C_ACC, 0));
+    plChip.style.visibility = "hidden";
+    body.classList.add("pulling");
+    SFX.drop();
+    requestAnimationFrame(pullStep);
+  }
+  function pullStep(now) {
+    const p = pull; if (!p) return;
+    const dt = Math.min(.05, (now - p.last) / 1000); p.last = now; p.t += dt;
+    if (plReady) p.spot = plReady.spot;
+    const s = p.spot, rad = s.size / 2, R = p.R;
+    if (p.phase === "hook") {
+      // the wheel drops into view at the top and pays out rope down to the button
+      const k = eio(clamp(p.t / .45)), cy = lerp(s.cy - 34, s.cy, k);
+      const gx = R.x + R.w / 2, gy = R.y, L = Math.hypot(gx - s.cx, gy - (cy + rad)) * k;
+      p.angle = -L / rad * DEG;
+      drawWheel(p.wheel, s.cx, cy, s.size, p.angle, k);
+      drawRope(p.rope, s.cx, cy + rad, lerp(s.cx, gx, k), lerp(cy + rad, gy, k));
+      if (p.t >= .45) {
+        if (!p.hooked) { p.hooked = true; SFX.hook(); p.hookAngle = p.angle; p.Lhook = L; p.tooth = Math.floor(p.angle / 30); }
+        if (plReady) { p.phase = "hoist"; p.ht = 0; p.B = plReady.bar; }
+        else if (now - p.t0 > 2600) {            // pulley didn't load in time: plain navigation
+          p.phase = "gone";
+          location.href = LINKS.pulley + "/#" + new URLSearchParams({ from: "pm", snd: SFX.on ? 1 : 0, t: Date.now() });
+          return;
+        }
+      }
+    } else if (p.phase === "hoist") {
+      // hoist the button up into the search bar's box; the lime drains out as it rises
+      p.ht += dt;
+      const k = eio(clamp(p.ht / .8)), B = p.B;
+      const x = lerp(R.x, B.l, k), y = lerp(R.y, B.t, k), w = lerp(R.w, B.w, k), h = lerp(R.h, B.h, k);
+      const fill = 1 - clamp((k - .45) / .45), arrow = 1 - clamp((k - .1) / .4);
+      setGhost(p.ghost, x, y, w, h, fill, arrow, mix(C_ACC, C_LINE2, clamp((k - .45) / .45)));
+      const L = Math.hypot(x + w / 2 - s.cx, y - (s.cy + rad));
+      p.angle = p.hookAngle + (p.Lhook - L) / rad * DEG;
+      drawWheel(p.wheel, s.cx, s.cy, s.size, p.angle);
+      drawRope(p.rope, s.cx, s.cy + rad, x + w / 2, y);
+      const th = Math.floor(p.angle / 30);
+      if (th !== p.tooth) { p.tooth = th; SFX.click(1 + k * .3); }
+      if (p.ht >= .8) {
+        p.phase = "relay";
+        SFX.thunk();
+        root.classList.add("relaying");          // full width, like the pulley page: no scrollbar gutter
+        plFrame.classList.add("live");
+        plFrame.contentWindow.postMessage({ type: "pm-go", a: +(p.angle % 360).toFixed(2), t: Date.now() }, PL_ORIGIN);
+        return;
+      }
+    }
+    requestAnimationFrame(pullStep);
+  }
+  plChip.addEventListener("click", e => {
+    if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || reduced) return;
+    e.preventDefault();
+    pullLaunch();
+  });
+  plChip.addEventListener("pointerenter", () => { if (finished && !reduced) plPrepare(); });
+  plChip.addEventListener("focus", () => { if (finished && !reduced) plPrepare(); });
+
+  // back from pulley: its search bar is lowered back down into the button on the rope, the rope
+  // comes loose and the wheel lifts away, while the page fades in around it
+  function lowerFromPulley() {
+    const A = plArrival, els = pullEls();
+    const txt = $(".txt", plChip);
+    txt.textContent = plChip.dataset.label; plChip.dataset.done = "1";
+    plChip.style.visibility = "hidden";
+    const s = { cx: A.wx, cy: A.wy, size: A.ws }, rad = s.size / 2;
+    const L0 = A.bt - (s.cy + rad);
+    let t = 0, last = performance.now(), revealed = false, tooth = Math.floor(A.a / 30), done = false;
+    function step(now) {
+      const dt = Math.min(.05, (now - last) / 1000); last = now; t += dt;
+      const k = eio(clamp(t / .85)), R = plChip.getBoundingClientRect();
+      const x = lerp(A.bl, R.left, k), y = lerp(A.bt, R.top, k), w = lerp(A.bw, R.width, k), h = lerp(A.bh, R.height, k);
+      setGhost(els.ghost, x, y, w, h, 0, clamp((k - .5) / .5), mix(C_LINE2, C_LINE, k));
+      const k2 = eio(clamp((t - .85) / .32));
+      const gx = x + w / 2, L = Math.hypot(gx - s.cx, y - (s.cy + rad));
+      const angle = A.a - (L - L0) / rad * DEG + k2 * 140;
+      drawRope(els.rope, s.cx, s.cy + rad - 34 * k2, lerp(gx, s.cx, k2), lerp(y, s.cy + rad - 34 * k2, k2));
+      drawWheel(els.wheel, s.cx, s.cy - 34 * k2, s.size, angle, 1 - k2);
+      const th = Math.floor(angle / 30);
+      if (th !== tooth) { tooth = th; SFX.click(1.1); }
+      if (!revealed && t > .3) { revealed = true; body.classList.add("arrived"); body.classList.remove("arriving"); }
+      if (t >= 1.17 && !done) { done = true; els.ghost.remove(); els.rope.remove(); els.wheel.remove(); plChip.style.visibility = ""; return; }
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
 
   /* ------------------------------------------------------------------ shell */
   const out = $("#out"), input = $("#cmd"), hl = $("#hl"), menu = $("#menu"), tbody = $("#tbody");
@@ -896,6 +1184,10 @@
         print(`<span class="o-dim">→ opening</span> <a href="${LINKS.flywheel}">flywheel.polymorphia.dev</a>`);
         if (reduced) setTimeout(() => location.href = LINKS.flywheel, 350); else setTimeout(launch, 250);
     } },
+    { name: "pulley", alias: ["ppm"], desc: "go to pulley.polymorphia.dev (packages)", run() {
+        print(`<span class="o-dim">→ opening</span> <a href="${LINKS.pulley}">pulley.polymorphia.dev</a>`);
+        if (reduced) setTimeout(() => location.href = LINKS.pulley, 350); else { plPrepare(); setTimeout(pullLaunch, 250); }
+    } },
     { name: "install", desc: "install Flywheel (install.sh / install.ps1)", args: ["sh", "ps1"], run(a) {
         const kind = a[0] === "ps1" || a[0] === "sh" ? a[0] : OS === "windows" ? "ps1" : "sh";
         const it = INSTALL[kind];
@@ -913,16 +1205,17 @@
         print(`<span class="o-dim">reloading…</span>`);
         setTimeout(() => location.reload(), 200);
     } },
-    { name: "open", desc: "open a link by name", args: ["github", "pypi", "flywheel", "install"], run(a) {
+    { name: "open", desc: "open a link by name", args: ["github", "pypi", "flywheel", "pulley", "install"], run(a) {
         const c = a[0] && resolve(a[0]);
-        if (!c || !["github", "pypi", "flywheel", "install"].includes(c.name)) return print(`<span class="o-err">open: ${a[0] ? "unknown link: " + esc(a[0]) : "missing operand"}</span>`);
+        if (!c || !["github", "pypi", "flywheel", "pulley", "install"].includes(c.name)) return print(`<span class="o-err">open: ${a[0] ? "unknown link: " + esc(a[0]) : "missing operand"}</span>`);
         c.run([]);
     } },
     { name: "ls", desc: "list links", run() {
-        print(`<span class="o-cyan">github@</span>  <span class="o-cyan">pypi@</span>  <span class="o-vio">flywheel/</span>`);
+        print(`<span class="o-cyan">github@</span>  <span class="o-cyan">pypi@</span>  <span class="o-vio">flywheel/</span>  <span class="o-vio">pulley/</span>`);
     } },
-    { name: "cd", desc: "change directory", args: ["flywheel", "~"], run(a) {
+    { name: "cd", desc: "change directory", args: ["flywheel", "pulley", "~"], run(a) {
         if (a[0] && a[0].replace(/\/$/, "") === "flywheel") return COMMANDS.find(c => c.name === "flywheel").run([]);
+        if (a[0] && a[0].replace(/\/$/, "") === "pulley") return COMMANDS.find(c => c.name === "pulley").run([]);
         if (!a[0] || a[0] === "~") return;
         print(`<span class="o-err">cd: no such directory: ${esc(a[0])}</span>`);
     } },
@@ -1091,7 +1384,7 @@
   }
 
   async function runMain(fast) {
-    const btns = $$(".tw");
+    const btns = $$(".tw").filter(b => !b.dataset.done);
     btns.forEach((b, i) => setTimeout(() => typeInto(b, reduced ? 0 : 55), (fast ? 120 : 260) + i * 280));
     await sleep(fast ? 250 : 520);
     bootShell(fast);
