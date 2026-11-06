@@ -392,7 +392,7 @@
 (() => {
   /* ------------------------------------------------------------------ config */
   const LINKS = {
-    github:   "https://github.com/fwlang",          // TODO: confirm org URL
+    github:   "https://github.com/pmorphia",
     pypi:     "https://pypi.org/user/polymorphia/",      // TODO: confirm PyPI user/org URL
     flywheel: "https://flywheel.polymorphia.dev",
     pulley:   "https://pulley.polymorphia.dev",
@@ -405,9 +405,9 @@
   const platform = ((navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || "").toLowerCase();
   const OS = /win/.test(platform) ? "windows" : /mac|iphone|ipad/.test(platform) ? "macos" : "linux";
   const REPOS = {
-    flywheel:          "https://github.com/fwlang/flywheel",
-    pulley:            "https://github.com/fwlang/pulley",
-    "vscode-flywheel": "https://github.com/fwlang/vscode-flywheel",
+    flywheel:          "https://github.com/pmorphia/flywheel",
+    pulley:            "https://github.com/pmorphia/pulley",
+    "vscode-flywheel": "https://github.com/pmorphia/vscode-flywheel",
   };
 
   /* ------------------------------------------------------------------ utils */
@@ -1191,7 +1191,6 @@
     { name: "install", desc: "install Flywheel (install.sh / install.ps1)", args: ["sh", "ps1"], run(a) {
         const kind = a[0] === "ps1" || a[0] === "sh" ? a[0] : OS === "windows" ? "ps1" : "sh";
         const it = INSTALL[kind];
-        if (!a[0] && OS === "macos") print(`<span class="o-err">macOS isn't supported yet</span> <span class="o-dim">— Flywheel builds on Linux and Windows</span>`);
         print(`<span class="o-dim">run this in ${kind === "ps1" ? "PowerShell" : "a terminal"}:</span>`);
         print(`  <span class="o-acc">${esc(it.cmd)}</span>`);
         openUrl(it.url);
